@@ -1,0 +1,10 @@
+import mpmath as mp
+import numpy as np
+import ROOT
+
+class Data:
+    def __init__(self):
+        self.T = [516544.63, 516530.31, 516527.08, 516520.94, 516517.33]
+        self.TError = [1, 1, 1, 1, 1]
+        self.MoQ = [2.33054, 2.33041, 2.33038, 2.33033, 2.33030]
+        self.MoQError = [4.44754e-9, 5.07318e-8, 5.50761e-8, 1.13020e-10, 6.86353e-8]

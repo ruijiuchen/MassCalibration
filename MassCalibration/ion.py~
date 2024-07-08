@@ -1,0 +1,34 @@
+import mpmath as mp
+import numpy as np
+import re
+
+class Ion:
+    def __init__(self, element, Z_ion, A_ion, Q_ion):
+        self.element = re.sub(r'\d+', '', element)  # Remove digits from the element
+        self.Z_ion = Z_ion  # Atomic number
+        self.A_ion = A_ion  # Mass number
+        self.Q_ion = Q_ion  # Charge state
+        self.revolution_time = None  # Revolution time in ns
+        self.revolution_time_error = None  # Error in revolution time in ps
+        self.mass_excess = 0  # Mass excess in MeV
+        self.mass_excess_error = 0  # Mass excess error in MeV
+        self.binding_energy = 0  # Binding energy in MeV
+
+    def set_revolution_time(self, revolution_time, revolution_time_error):
+        self.revolution_time = revolution_time
+        self.revolution_time_error = revolution_time_error
+
+    def set_mass_excess(self, mass_excess, mass_excess_error):
+        self.mass_excess = mass_excess
+        self.mass_excess_error = mass_excess_error
+
+    def set_binding_energy(self, binding_energy):
+        self.binding_energy = binding_energy
+
+    def __repr__(self):
+        return (f"Ion({self.element}, Z={self.Z_ion}, A={self.A_ion}, Q={self.Q_ion}, "
+                f"RevolutionTime={self.revolution_time} ns, "
+                f"RevolutionTimeError={self.revolution_time_error} ps, "
+                f"MassExcess={self.mass_excess} MeV, "
+                f"MassExcessError={self.mass_excess_error} MeV, "
+                f"BindingEnergy={self.binding_energy} MeV)")

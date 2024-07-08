@@ -1,0 +1,99 @@
+import mpmath as mp
+import numpy as np
+import ROOT
+
+class Model:
+    def __init__(self, data):
+        self.data = data
+        self.beta = None
+
+    def calculate_error_propagation(self, x, coeffs, x_error, p):
+        """
+        Calculate error propagation, compute the error in f based on the formula
+        """
+        f_error = mp.mpf(0)
+        for k in range(1, p + 1):
+            f_error += k * coeffs[k] * (x ** (k - 1)) * x_error
+        return f_error
+
+    def svd_inverse(self, A):
+        """
+        Compute the pseudo-inverse of matrix A using SVD
+        """
+        U, s, Vt = np.linalg.svd(A)
+        s_inv = np.array([1 / si if si > 1e-10 else 0 for si in s])
+        A_inv = Vt.T @ np.diag(s_inv) @ U.T
+        return A_inv
+
+    def weighted_least_squares(self, x_data, y_data, x_errors, y_errors, p, tol=1e-10, max_iter=100, lambda_reg=1e-5):
+        # Use high precision with mpmath
+        mp.dps = 50  # Set precision to 50 decimal places
+
+        n = len(x_data)
+
+        # Convert data to mpmath matrices
+        x = mp.matrix(x_data)
+        y = mp.matrix(y_data)
+
+        # Construct design matrix F, including bias term and polynomial terms
+        F = mp.matrix([[mp.mpf(x_data[i])**j for j in range(p + 1)] for i in range(n)])
+
+        # Initial fit with regularization to handle singularity
+        P_init = mp.diag([mp.mpf(1) / (mp.mpf(y_errors[i]) ** 2) for i in range(n)])
+        regularization = lambda_reg * mp.eye(p + 1)
+        Ft_Pinit_F = F.T * P_init * F + regularization
+
+        # Convert to numpy for SVD
+        Ft_Pinit_F_np = np.array(Ft_Pinit_F.tolist(), dtype=np.float64)
+        F_T_Pinit_np = np.array((F.T * P_init).tolist(), dtype=np.float64)
+        y_np = np.array(y.tolist(), dtype=np.float64)
+
+        A_init_np = self.svd_inverse(Ft_Pinit_F_np) @ F_T_Pinit_np @ y_np
+        A_init = [mp.mpf(float(ai)) for ai in A_init_np]
+        for iteration in range(max_iter):
+            # Calculate error propagation
+            f_errors = [self.calculate_error_propagation(mp.mpf(x_data[i]), A_init, mp.mpf(x_errors[i]), p) for i in range(n)]
+
+            # Construct total errors
+            total_errors = [mp.mpf(y_errors[i] ** 2) + f_errors[i] ** 2 for i in range(n)]
+            P = mp.diag([mp.mpf(1) / e for e in total_errors])
+
+            Ft_P_F = F.T * P * F + regularization
+
+            # Convert to numpy for SVD
+            Ft_P_F_np = np.array(Ft_P_F.tolist(), dtype=np.float64)
+            F_T_P_np = np.array((F.T * P).tolist(), dtype=np.float64)
+            # Compute new parameters with SVD inverse
+            A_new_np = self.svd_inverse(Ft_P_F_np) @ F_T_P_np @ y_np
+            A_new = [mp.mpf(float(ai)) for ai in A_new_np]
+
+            # Check convergence
+            if all(abs(A_new[i] - A_init[i]) < tol for i in range(len(A_new))):
+                break
+
+            A_init = A_new
+
+        # Print intermediate variables and results
+        print(f"Design matrix F:\n{F}")
+        print(f"Initial weight matrix P_init:\n{P_init}")
+        print(f"Initial parameters A_init:\n{A_init}")
+        print(f"Final weight matrix P:\n{P}")
+        print(f"Final parameters A_new:\n{A_new}")
+
+        return A_new
+
+    def fit(self):
+        # Set the degree of the polynomial
+        p = 2
+
+        # Try different regularization parameters
+        for lambda_reg in [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0]:
+            print(f"Trying lambda_reg = {lambda_reg}")
+            try:
+                # Perform weighted least squares fitting
+                self.beta = self.weighted_least_squares(self.data.T, self.data.MoQ, self.data.TError, self.data.MoQError, p, lambda_reg=lambda_reg)
+                # Print the fitting parameters
+                print(f"Fitting parameters with lambda_reg = {lambda_reg}: {self.beta}")
+                break
+            except ZeroDivisionError as e:
+                print(f"Failed with lambda_reg = {lambda_reg}: {e}")
