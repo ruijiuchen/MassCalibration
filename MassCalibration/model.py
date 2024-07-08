@@ -32,6 +32,7 @@ class Model:
         
         return initial_params,covarianceMatrix
     
+    
     def weighted_least_squares(self, x_data, y_data, x_errors, y_errors, p, initial_params=None, tol=1e-10, max_iter=100, lambda_reg=1e-5):
         mp.dps = 50  # Set precision to 50 decimal places
 
