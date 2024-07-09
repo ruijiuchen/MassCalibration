@@ -76,7 +76,7 @@ class CalibrationApp(QWidget):
             self.save_config_to_file(config_file)
     
     def save_config_to_file(self, config_file):
-        parameters = {key: self.param_inputs[key].currentText() if key == 'draw_individual_fits' else self.param_inputs[key].text() for key in self.param_inputs}
+        parameters = {key: self.param_inputs[key].currentText() if key in ['draw_individual_fits', 'OutputMatrixOrNot'] else self.param_inputs[key].text() for key in self.param_inputs}
         with open(config_file, 'w') as f:
             toml.dump({'parameters': parameters}, f)
     
@@ -90,14 +90,14 @@ class CalibrationApp(QWidget):
         # Update existing parameter inputs or create new ones if they do not exist
         for key, value in self.config['parameters'].items():
             if key in self.param_inputs:
-                if key == 'draw_individual_fits':
+                if key in ['draw_individual_fits', 'OutputMatrixOrNot']:
                     self.param_inputs[key].setCurrentText(str(value))
                 else:
                     self.param_inputs[key].setText(str(value))
             else:
                 if key in ['ame_file', 'elbien_file', 'revtime_file']:
                     self.create_file_input(key, value)
-                elif key == 'draw_individual_fits':
+                elif key in ['draw_individual_fits', 'OutputMatrixOrNot']:
                     self.create_combobox_input(key, value)
                 else:
                     label = QLabel(f"{key}:")
@@ -170,7 +170,7 @@ class CalibrationApp(QWidget):
 
         # Read values from input fields
         for key in self.param_inputs:
-            if key == 'draw_individual_fits':
+            if key in ['draw_individual_fits', 'OutputMatrixOrNot']:
                 self.config['parameters'][key] = self.param_inputs[key].currentText()
             else:
                 self.config['parameters'][key] = self.param_inputs[key].text()
@@ -184,7 +184,7 @@ class CalibrationApp(QWidget):
         revtime_file = self.config['parameters'].get('revtime_file', 'default_revtime_file.txt')
         p = int(self.config['parameters'].get('p', 2))
         iterationMax = int(self.config['parameters'].get('iterationMax', 100))
-        OutputMatrixOrNot = self.config['parameters'].get('OutputMatrixOrNot', 'True') == 'True'
+        OutputMatrixOrNot = self.config['parameters'].get('OutputMatrixOrNot', 'true') == 'true'
         initial_params = list(map(float, self.config['parameters'].get('initial_params', '[0, 0, 0]').strip('[]').split(',')))
         label_offset = int(self.config['parameters'].get('label_offset', 5))
         
