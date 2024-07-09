@@ -1,8 +1,7 @@
-# MassCalibration/__main__.py
-
 import sys
 import toml
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QHBoxLayout, QMainWindow, QFrame, QLabel
+import os
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QHBoxLayout, QMainWindow, QFrame, QComboBox
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt
 from ROOT import TCanvas, TGraphErrors, TLatex, TLegend, TLine, kBlack, kRed, kMagenta
@@ -15,7 +14,7 @@ from MassCalibration.gui import GUI
 class CalibrationApp(QWidget):
     def __init__(self, config_file=None):
         super().__init__()
-        self.config_file = config_file
+        self.config_file = config_file or os.path.join(os.getenv('MASSCALIBRATION_ROOT', ''), 'config.toml')
         self.initUI()
         
     def initUI(self):
@@ -51,7 +50,7 @@ class CalibrationApp(QWidget):
         self.param_browsers = {}
         
         self.config = None
-        if self.config_file:
+        if self.config_file and os.path.exists(self.config_file):
             self.load_config_from_file(self.config_file)
         
         self.setLayout(self.layout)
@@ -77,9 +76,12 @@ class CalibrationApp(QWidget):
             self.save_config_to_file(config_file)
     
     def save_config_to_file(self, config_file):
-        parameters = {key: self.param_inputs[key].text() for key in self.param_inputs}
+        parameters = {key: self.param_inputs[key].currentText() if key == 'draw_individual_fits' else self.param_inputs[key].text() for key in self.param_inputs}
         with open(config_file, 'w') as f:
             toml.dump({'parameters': parameters}, f)
+    
+    def save_config_to_default_file(self):
+        self.save_config_to_file(self.config_file)
 
     def displayConfig(self):
         if not self.config:
@@ -88,10 +90,15 @@ class CalibrationApp(QWidget):
         # Update existing parameter inputs or create new ones if they do not exist
         for key, value in self.config['parameters'].items():
             if key in self.param_inputs:
-                self.param_inputs[key].setText(str(value))
+                if key == 'draw_individual_fits':
+                    self.param_inputs[key].setCurrentText(str(value))
+                else:
+                    self.param_inputs[key].setText(str(value))
             else:
                 if key in ['ame_file', 'elbien_file', 'revtime_file']:
                     self.create_file_input(key, value)
+                elif key == 'draw_individual_fits':
+                    self.create_combobox_input(key, value)
                 else:
                     label = QLabel(f"{key}:")
                     self.layout.addWidget(label)
@@ -116,6 +123,21 @@ class CalibrationApp(QWidget):
         browse_button.clicked.connect(lambda: self.browse_file(key))
         h_layout.addWidget(browse_button)
         self.param_browsers[key] = browse_button
+        
+        self.layout.addLayout(h_layout)
+
+    def create_combobox_input(self, key, value):
+        h_layout = QHBoxLayout()
+        
+        label = QLabel(f"{key}:")
+        h_layout.addWidget(label)
+        self.param_labels[key] = label
+
+        combobox = QComboBox()
+        combobox.addItems(['true', 'false'])
+        combobox.setCurrentText(str(value))
+        h_layout.addWidget(combobox)
+        self.param_inputs[key] = combobox
         
         self.layout.addLayout(h_layout)
 
@@ -148,7 +170,13 @@ class CalibrationApp(QWidget):
 
         # Read values from input fields
         for key in self.param_inputs:
-            self.config['parameters'][key] = self.param_inputs[key].text()
+            if key == 'draw_individual_fits':
+                self.config['parameters'][key] = self.param_inputs[key].currentText()
+            else:
+                self.config['parameters'][key] = self.param_inputs[key].text()
+
+        # Save the current configuration to the default config file
+        self.save_config_to_default_file()
 
         # Convert parameters to appropriate types
         ame_file = self.config['parameters'].get('ame_file', 'default_ame_file.rd')
@@ -169,9 +197,7 @@ class CalibrationApp(QWidget):
         if me_vs_tof_y_max is not None:
             me_vs_tof_y_max = float(me_vs_tof_y_max)
 
-        draw_individual_fits = self.config['parameters'].get('draw_individual_fits', True)
-        if isinstance(draw_individual_fits, str):
-            draw_individual_fits = draw_individual_fits.lower() == 'true'
+        draw_individual_fits = self.config['parameters'].get('draw_individual_fits', 'true') == 'true'
         
         print(f"draw_individual_fits: {draw_individual_fits}")  # Debug print
 
@@ -195,10 +221,16 @@ class CalibrationApp(QWidget):
         self.create_plot_window(image_path)
 
 def main():
-    config_file = None
+    # Set the default config file location
+    default_config_file = os.path.join(os.getenv('MASSCALIBRATION_ROOT', ''), 'config.toml')
+    
+    # Check if a config file was provided as a command-line argument
     if len(sys.argv) == 2:
         config_file = sys.argv[1]
+    else:
+        config_file = default_config_file
     
+    # Run the application
     app = QApplication(sys.argv)
     ex = CalibrationApp(config_file)
     sys.exit(app.exec_())

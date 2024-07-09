@@ -1,5 +1,6 @@
 LICENSE
 README.md
+config.toml
 setup.cfg
 setup.py
 MassCalibration/__init__.py
@@ -14,4 +15,5 @@ MassCalibration.egg-info/PKG-INFO
 MassCalibration.egg-info/SOURCES.txt
 MassCalibration.egg-info/dependency_links.txt
 MassCalibration.egg-info/entry_points.txt
+MassCalibration.egg-info/requires.txt
 MassCalibration.egg-info/top_level.txt
