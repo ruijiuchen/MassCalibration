@@ -21,7 +21,7 @@ class Ion:
         self.exp_mass_Q_error = None  # Experimental mass/amu/Q error
         self.initial_params = None 
         self.initial_covarianceMatrix = None
-        self.beta = None  # Add beta to store fit parameters for each ion
+        self.params = None  # Add beta to store fit parameters for each ion
         
     def set_revolution_time(self, revolution_time, revolution_time_error):
         self.revolution_time = revolution_time

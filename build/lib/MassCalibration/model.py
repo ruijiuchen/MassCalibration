@@ -4,14 +4,17 @@ import ROOT
 from .constants import amu, me
 
 class Model:
-    def __init__(self, data, p):
+    def __init__(self, data, p,iterationMax,OutputMatrixOrNot,initial_params):
         self.data = data
         self.p = p
-        self.initial_params = None
+        self.iterationMax = iterationMax
+        self.OutputMatrixOrNot = OutputMatrixOrNot
+        self.initial_params = initial_params
         self.initial_covarianceMatrix = None
-        self.beta = None
-        self.F = None
-        self.P = None
+        self.initial_chi2 = None
+        self.params = None
+        self.covarianceMatrix = None
+        self.chi2 = None
         
     def get_initial_params_from_root(self, T, MoQ):
         # Create a TGraphErrors for ROOT fitting
@@ -21,7 +24,8 @@ class Model:
 
         # Perform a polynomial fit of degree p
         fit = ROOT.TF1("fit", f"pol{self.p}", min(T), max(T))
-        
+        for i in range(self.p + 1):
+            fit.SetParameter(i,self.initial_params[i]) 
         fitResult = graph.Fit(fit, "S Q")  # Quiet mode
         
         # Get the fit parameters
@@ -31,85 +35,8 @@ class Model:
         covarianceMatrix = fitResult.GetCovarianceMatrix()
         
         return initial_params,covarianceMatrix
-    
-    def weighted_least_squares(self, x_data, y_data, x_errors, y_errors, p, initial_params=None, tol=1e-10, max_iter=100, lambda_reg=1e-5):
-        mp.dps = 50  # Set precision to 50 decimal places
 
-        n = len(x_data)
-
-        # Convert data to mpmath matrices
-        x = mp.matrix(x_data)
-        y = mp.matrix(y_data)
-
-        # Construct design matrix F, including bias term and polynomial terms
-        F = mp.matrix([[mp.mpf(x_data[i])**j for j in range(p + 1)] for i in range(n)])
-
-        # Initial fit with regularization to handle singularity
-        P_init = mp.diag([mp.mpf(1) / (mp.mpf(y_errors[i]) ** 2) for i in range(n)])
-        regularization = lambda_reg * mp.eye(p + 1)
-        Ft_Pinit_F = F.T * P_init * F + regularization
-
-        # Convert to numpy for SVD
-        Ft_Pinit_F_np = np.array(Ft_Pinit_F.tolist(), dtype=np.float64)
-        F_T_Pinit_np = np.array((F.T * P_init).tolist(), dtype=np.float64)
-        y_np = np.array(y.tolist(), dtype=np.float64)
-
-        # If initial_params are provided, use them as the starting point
-        if initial_params is not None:
-            A_current_np = np.array(initial_params, dtype=np.float64)
-        else:
-            A_current_np = self.svd_inverse(Ft_Pinit_F_np) @ F_T_Pinit_np @ y_np
-
-        A_current = [mp.mpf(float(ai)) for ai in A_current_np]
-        
-        # Calculate initial chi_squared
-        chi2_min = sum((y[i] - sum(A_current[j] * x[i] ** j for j in range(p + 1))) ** 2 / (mp.mpf(y_errors[i]) ** 2) for i in range(n))
-        best_params = A_current
-
-        for iteration in range(max_iter):
-            # Calculate error propagation
-            f_errors = [self.calculate_error_propagation(mp.mpf(x_data[i]), A_current, mp.mpf(x_errors[i]), p) for i in range(n)]
-
-            # Construct total errors
-            total_errors = [mp.mpf(y_errors[i] ** 2) + f_errors[i] ** 2 for i in range(n)]
-            P = mp.diag([mp.mpf(1) / e for e in total_errors])
-
-            Ft_P_F = F.T * P * F + regularization
-
-            # Convert to numpy for SVD
-            Ft_P_F_np = np.array(Ft_P_F.tolist(), dtype=np.float64)
-            F_T_P_np = np.array((F.T * P).tolist(), dtype=np.float64)
-            # Compute new parameters with SVD inverse
-            A_new_np = self.svd_inverse(Ft_P_F_np) @ F_T_P_np @ y_np
-            A_new = [mp.mpf(float(ai)) for ai in A_new_np]
-
-            # Calculate new chi_squared
-            chi2_new = sum((y[i] - sum(A_new[j] * x[i] ** j for j in range(p + 1))) ** 2 / total_errors[i] for i in range(n))
-
-            # Debugging information
-            #print(f"Iteration {iteration}: chi2_new: {chi2_new}")
-            #print(f"A_current: {A_current}")
-            #print(f"A_new: {A_new}")
-            #print(f"chi2_new: {chi2_new}")
-
-            # Check convergence based on chi_squared change
-            if abs(chi2_new - chi2_min) < tol:
-                best_params = A_new
-                chi2_min = chi2_new
-                break
-
-            if chi2_new < chi2_min:
-                chi2_min = chi2_new
-                best_params = A_new
-
-            A_current = A_new
-
-        self.F = F  # Store F as an instance attribute
-        self.P = P  # Store P as an instance attribute
-
-        return best_params, F, P
-    
-    def LeastSquareFit(T, TError, MoQ, MoQError, p,iterationMax,A0,OutputMatrixOrNot):
+    def LeastSquareFit(self, T, TError, MoQ, MoQError, p,iterationMax,A0,OutputMatrixOrNot):
         N        =len(T)
         A        =A0[:]
         chi2_min =1e20
@@ -274,51 +201,28 @@ class Model:
                 terr = ion.revolution_time_error
                 moqerr = ion.mass_Q_error
                 print(f"Ion: {ion_name}, T: {t}, MoQ: {moq}, TError: {terr}, MoQError: {moqerr}")
-                
+        
         # Get initial parameters from ROOT fit
         self.initial_params,self.initial_covarianceMatrix = self.get_initial_params_from_root(T, MoQ)
-        print(f"Initial parameters from ROOT fit: {self.initial_params}")
         
         # Calculate chi_squared
         chi_squared = sum((MoQ[i] - sum(self.initial_params[j] * mp.mpf(T[i]) ** j for j in range(p + 1))) ** 2 / MoQError[i] ** 2 for i in range(len(T)))
+        
+        self.params, self.chi2, self.covarianceMatrix = self.LeastSquareFit(T, TError, MoQ, MoQError, self.p+1, self.iterationMax ,self.initial_params , self.OutputMatrixOrNot)
+        print(f"Initial parameters from ROOT fit: {self.initial_params}")
         print(f"Chi_squared with initial parameters: {chi_squared}")
         
-        # Try different regularization parameters
-        for lambda_reg in [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0]:
-            print(f"Trying lambda_reg = {lambda_reg}")
-            try:
-                # Perform weighted least squares fitting
-                self.beta, self.F, self.P = self.weighted_least_squares(T, MoQ, TError, MoQError, p, lambda_reg=lambda_reg)
-                # Print the fitting parameters
-                print(f"Fitting parameters with lambda_reg = {lambda_reg}: {self.beta}")
-                
-                # Calculate chi_squared
-                chi_squared = sum((MoQ[i] - sum(self.beta[j] * mp.mpf(T[i]) ** j for j in range(p + 1))) ** 2 / MoQError[i] ** 2 for i in range(len(T)))
-                print(f"Chi_squared with lambda_reg = {lambda_reg}: {chi_squared}")
-                
-                if chi_squared < 1e6:  # You can adjust this threshold
-                    break
-            except ZeroDivisionError as e:
-                print(f"Failed with lambda_reg = {lambda_reg}: {e}")
-
-        # Calculate exp_mass_Q and exp_mass_Q_error for non-reference ions
         for ion in self.data.ions:
-            if not ion.is_reference_ion:
-                t = mp.mpf(ion.revolution_time)
-                #exp_mq = sum(self.beta[i] * t ** i for i in range(p + 1))
-                exp_mq = sum(self.initial_params[i] * t ** i for i in range(p + 1))
+            if ion.is_reference_ion == False:
+                # Calculate exp_mass_Q and exp_mass_Q_error for the temporarily excluded ion
+                t = ion.revolution_time
+                exp_mq = sum(self.params[i] * t ** i for i in range(self.p + 1))
+
                 # Calculate average fitting error (sigma_fitav)
-                #Ft_P_F_inv = self.svd_inverse(np.array((self.F.T * self.P * self.F).tolist(), dtype=np.float64))
-                Ft_P_F_inv = self.initial_covarianceMatrix
-                sigma_fitav = 0
-                a=sum(Ft_P_F_inv[k, l] * (t ** k) * (t ** l) for k in range(p + 1) for l in range(p + 1))
-                if a >0:
-                    sigma_fitav = mp.sqrt(a)
-                sigma_freq = 0
-                b=sum((self.beta[k] * (t ** (k - 1)) * mp.mpf(ion.revolution_time_error)) ** 2 for k in range(1, p + 1))
+                sigma_fitav = mp.sqrt(sum(self.covarianceMatrix[k, l] * (t ** k) * (t ** l) for k in range(self.p + 1) for l in range(self.p + 1)))
+
                 # Calculate frequency error (sigma_freq)
-                if b >0:
-                    sigma_freq = mp.sqrt(b)
+                sigma_freq = mp.sqrt(sum((self.params[k] * (t ** (k - 1)) * mp.mpf(ion.revolution_time_error)) ** 2 for k in range(1, self.p + 1)))
 
                 # Calculate total statistical error (sigma_stat)
                 sigma_stat = mp.sqrt(sigma_fitav ** 2 + sigma_freq ** 2)
@@ -331,19 +235,22 @@ class Model:
                 ion.exp_mass_excess = Mass_N - ion.A_ion * amu + ion.Q_ion * me - ion.binding_energy
                 ion.exp_mass_excess_error = ion.exp_mass_Q_error / ion.exp_mass_Q * Mass_N
 
-                # Print intermediate variables for debugging
-                print(f"Debugging for Ion: {ion.element}-{ion.A_ion}")
-                print(f"Ft_P_F_inv:\n{Ft_P_F_inv}")
+                # Store the beta parameters for the ion
+                ion.initial_params = self.initial_params
+                ion.initial_covarianceMatrix = self.initial_covarianceMatrix
+                ion.params = self.params
+                print(f"Self-Calibration for Ion: {ion.element}-{ion.A_ion}")
+                print(f"self.covarianceMatrix:\n{self.covarianceMatrix}")
                 print(f"sigma_fitav: {sigma_fitav}")
-                print(f"chi_squared: {chi_squared}")
                 print(f"sigma_freq: {sigma_freq}")
                 print(f"sigma_stat: {sigma_stat}")
                 print(f"Exp_Mass_Q: {ion.exp_mass_Q}")
                 print(f"Exp_Mass_Q_Error: {ion.exp_mass_Q_error}")
-                print(f"Mass_N: {Mass_N}")
-                print(f"Exp_Mass_Excess: {ion.exp_mass_excess}")
-                print(f"Exp_Mass_Excess_Error: {ion.exp_mass_excess_error}")
-
+                print(f"Mass_N: {Mass_N} MeV")
+                print(f"Exp_Mass_Excess: {ion.exp_mass_excess} MeV")
+                print(f"Exp_Mass_Excess_Error: {ion.exp_mass_excess_error*1000} keV")            
+            
+        
     def self_calibration(self):
         # Extract reference ions
         reference_ions = [ion for ion in self.data.ions if ion.is_reference_ion]
@@ -358,15 +265,13 @@ class Model:
             
             # Calculate exp_mass_Q and exp_mass_Q_error for the temporarily excluded ion
             t = mp.mpf(ion.revolution_time)
-            exp_mq = sum(self.initial_params[i] * t ** i for i in range(self.p + 1))
+            exp_mq = sum(self.params[i] * t ** i for i in range(self.p + 1))
             
             # Calculate average fitting error (sigma_fitav)
-            #Ft_P_F_inv = self.svd_inverse(np.array((self.F.T * self.P * self.F).tolist(), dtype=np.float64))
-            Ft_P_F_inv = self.initial_covarianceMatrix
-            sigma_fitav = mp.sqrt(sum(Ft_P_F_inv[k, l] * (t ** k) * (t ** l) for k in range(self.p + 1) for l in range(self.p + 1)))
+            sigma_fitav = mp.sqrt(sum(self.covarianceMatrix[k, l] * (t ** k) * (t ** l) for k in range(self.p + 1) for l in range(self.p + 1)))
 
             # Calculate frequency error (sigma_freq)
-            sigma_freq = mp.sqrt(sum((self.beta[k] * (t ** (k - 1)) * mp.mpf(ion.revolution_time_error)) ** 2 for k in range(1, self.p + 1)))
+            sigma_freq = mp.sqrt(sum((self.params[k] * (t ** (k - 1)) * mp.mpf(ion.revolution_time_error)) ** 2 for k in range(1, self.p + 1)))
 
             # Calculate total statistical error (sigma_stat)
             sigma_stat = mp.sqrt(sigma_fitav ** 2 + sigma_freq ** 2)
@@ -382,11 +287,11 @@ class Model:
             # Store the beta parameters for the ion
             ion.initial_params = self.initial_params
             ion.initial_covarianceMatrix = self.initial_covarianceMatrix
-            ion.beta = self.beta
+            ion.beta = self.params
             
             # Print intermediate variables for debugging
             print(f"Self-Calibration for Ion: {ion.element}-{ion.A_ion}")
-            print(f"Ft_P_F_inv:\n{Ft_P_F_inv}")
+            print(f"self.covarianceMatrix:\n{self.covarianceMatrix}")
             print(f"sigma_fitav: {sigma_fitav}")
             print(f"sigma_freq: {sigma_freq}")
             print(f"sigma_stat: {sigma_stat}")

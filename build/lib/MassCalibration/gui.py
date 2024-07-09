@@ -31,11 +31,11 @@ class GUI:
             canvas.cd(1)
             graph.Draw("AP")
 
-            if ion.beta:
-                # Create a TF1 object using the beta parameters from the ion
+            if np.any(ion.params):
+                # Create a TF1 object using the params parameters from the ion
                 func = ROOT.TF1(f"func_{ion.element}_{ion.A_ion}", f"pol{self.data.p}", min_revolution_time, max_revolution_time)
                 for i in range(self.data.p + 1):
-                    func.SetParameter(i, float(ion.beta[i])) 
+                    func.SetParameter(i, float(ion.params[i])) 
                 func.SetLineColor(ROOT.kGreen)
 
                 # Draw the fitting function
@@ -45,7 +45,7 @@ class GUI:
                 beta_text = ROOT.TLatex()
                 beta_text.SetNDC()
                 beta_text.SetTextSize(0.03)
-                beta_text.DrawLatex(0.15, 0.85, f"Beta: {ion.beta}")
+                beta_text.DrawLatex(0.15, 0.85, f"params: {ion.params}")
                 
                 canvas.cd(2)
                 graph.Draw("AP")
