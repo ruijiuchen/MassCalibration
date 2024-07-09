@@ -91,7 +91,8 @@ class GUI:
 
             canvas.Update()
             canvas.SaveAs(f"Fit_{ion.A_ion}{ion.element}.png")
-    def draw_me_vs_tof(self):
+            
+    def draw_me_vs_tof(self, label_offset=5, x_min=None, x_max=None, y_min=None, y_max=None):
         # Create TGraphErrors for ME(EXP-AME) vs TOF
         graph_me_exp_ame = ROOT.TGraphErrors()
         graph_me_exp_ame.SetTitle("ME(EXP-AME) vs TOF; TOF (ns); ME(EXP-AME) (keV)")
@@ -107,8 +108,17 @@ class GUI:
         graph_me.SetLineWidth(2)
         graph_me.SetMarkerColor(7)
 
+        # Create TGraphErrors for ME(EXP-AME) vs TOF for non-reference ions
+        graph_me_exp_ame_non_ref = ROOT.TGraphErrors()
+        graph_me_exp_ame_non_ref.SetTitle("ME(EXP-AME) vs TOF (Non-reference Ions); TOF (ns); ME(EXP-AME) (keV)")
+        graph_me_exp_ame_non_ref.SetMarkerStyle(21)  # Square markers
+        graph_me_exp_ame_non_ref.SetMarkerSize(1)
+        graph_me_exp_ame_non_ref.SetMarkerColor(ROOT.kRed)
+        graph_me_exp_ame_non_ref.SetLineColor(ROOT.kRed)
+
         i = 0
         j = 0
+        k = 0  # New index for non-reference ions
         for ion in self.data.ions:
             if ion.exp_mass_excess is not None and ion.mass_excess is not None:
                 tof = ion.revolution_time / 1000
@@ -124,26 +134,36 @@ class GUI:
                 graph_me.SetPointError(j, tof_error, ion.mass_excess_error * 1000)
                 j += 1
 
-        canvas = ROOT.TCanvas("canvas_me_vs_tof", "canvas_me_vs_tof", 910, 600)
+                if not ion.is_reference_ion:
+                    graph_me_exp_ame_non_ref.SetPoint(k, tof, me_exp_ame)
+                    graph_me_exp_ame_non_ref.SetPointError(k, tof_error, me_error)
+                    k += 1
+
+        canvas = ROOT.TCanvas("canvas_me_vs_tof", "canvas_me_vs_tof", 910, 700)
         canvas.SetFillColor(0)
         canvas.SetBorderMode(0)
         canvas.SetBorderSize(2)
         canvas.SetLeftMargin(0.15)
         canvas.SetRightMargin(0.05)
         canvas.SetTopMargin(0.08)
-        canvas.SetBottomMargin(0.14)
+        canvas.SetBottomMargin(0.12)  # Adjusted margin to ensure x-axis title is not blocked
         canvas.SetFrameBorderMode(0)
 
         # Draw ME(EXP-AME) vs TOF
         graph_me.Draw("A3")
         graph_me.Draw("sameP")
         graph_me_exp_ame.Draw("sameP")
+        graph_me_exp_ame_non_ref.Draw("sameP")
 
-        # Set axis parameters
-        x_min = graph_me_exp_ame.GetXaxis().GetXmin()
-        x_max = graph_me_exp_ame.GetXaxis().GetXmax()
-        y_min = graph_me_exp_ame.GetYaxis().GetXmin()
-        y_max = graph_me_exp_ame.GetYaxis().GetXmax()
+        # Set axis parameters with optional input values
+        if x_min is None:
+            x_min = graph_me_exp_ame.GetXaxis().GetXmin()
+        if x_max is None:
+            x_max = graph_me_exp_ame.GetXaxis().GetXmax()
+        if y_min is None:
+            y_min = graph_me_exp_ame.GetYaxis().GetXmin()
+        if y_max is None:
+            y_max = graph_me_exp_ame.GetYaxis().GetXmax()
 
         graph_me.GetXaxis().SetTitle("Revolution time (ns)")
         graph_me.GetXaxis().SetLimits(x_min, x_max)
@@ -177,11 +197,22 @@ class GUI:
                 tof = ion.revolution_time / 1000
                 me_exp_ame = (ion.exp_mass_excess - ion.mass_excess) * 1000  # Convert to keV
                 me_error = ion.exp_mass_excess_error * 1000  # Convert to keV
-                ion_name = f"{ion.A_ion}{ion.element}"
-                label.DrawLatex(tof, me_exp_ame + me_error + 5, ion_name)  # Position label above error bar
+                ion_name = f"^{{{ion.A_ion}}}{ion.element}_{{{ion.Z_ion}}}^{{{ion.Q_ion}+}}"
+                label.SetTextColor(ROOT.kMagenta if ion.Z_ion != ion.Q_ion else ROOT.kBlack)
+                label.DrawLatex(tof, me_exp_ame + me_error + label_offset, ion_name)  # Position label above error bar
+
+        # Add legend
+        legend = ROOT.TLegend(0.15, 0.85, 0.85, 0.92)  # Position the legend outside the frame
+        legend.SetNColumns(2)  # Set number of columns in the legend
+        legend.AddEntry(graph_me_exp_ame, "Reference Ions", "p")
+        legend.AddEntry(graph_me_exp_ame_non_ref, "Non-reference Ions", "p")
+        legend.Draw()
 
         # Update and save the canvas
         canvas.Update()
+        
         canvas.SaveAs("ME_vs_TOF_with_labels.png")
+        canvas.SaveAs("ME_vs_TOF_with_labels.root")
+        return canvas
 
 

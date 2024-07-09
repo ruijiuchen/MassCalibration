@@ -25,7 +25,10 @@ class Model:
         # Perform a polynomial fit of degree p
         fit = ROOT.TF1("fit", f"pol{self.p}", min(T), max(T))
         for i in range(self.p + 1):
-            fit.SetParameter(i,self.initial_params[i]) 
+            if i < len(self.initial_params):
+                fit.SetParameter(i, self.initial_params[i])
+            else:
+                fit.SetParameter(i, 0)  # Set parameter to 0 if i exceeds the length of initial_params
         fitResult = graph.Fit(fit, "S Q")  # Quiet mode
         
         # Get the fit parameters
@@ -45,7 +48,6 @@ class Model:
         iteration=0
 
         for iteration in range(0, iterationMax):
-            if OutputMatrixOrNot: print("### iteration = ",iteration," chi2_min=","%10.5e"%chi2_min)
             FDB=[]
             PDB=[]
             # step 1: F matrix.
@@ -179,7 +181,9 @@ class Model:
                     for i in range(0, p):
                         print("%10.5e"%A[i])
                     print("chi2=",chi2)
-        if OutputMatrixOrNot: print("iteration  = ",iteration," A_min = ",A_min," chi2_min=", chi2_min)
+            if OutputMatrixOrNot: print("### iteration = ",iteration," chi2_min=","%10.5e"%chi2_min," A_min = ",A_min," chi2=","%10.5e"%chi2," A = ",A)
+            
+        #if OutputMatrixOrNot: print("iteration  = ",iteration," A_min = ",A_min," chi2_min=", chi2_min)
         return A_min, chi2_min,b2_inverse_min
 
     def calibration(self):
@@ -206,11 +210,12 @@ class Model:
         self.initial_params,self.initial_covarianceMatrix = self.get_initial_params_from_root(T, MoQ)
         
         # Calculate chi_squared
-        chi_squared = sum((MoQ[i] - sum(self.initial_params[j] * mp.mpf(T[i]) ** j for j in range(p + 1))) ** 2 / MoQError[i] ** 2 for i in range(len(T)))
+        self.initial_chi2 = sum((MoQ[i] - sum(self.initial_params[j] * mp.mpf(T[i]) ** j for j in range(p + 1))) ** 2 / MoQError[i] ** 2 for i in range(len(T)))
         
         self.params, self.chi2, self.covarianceMatrix = self.LeastSquareFit(T, TError, MoQ, MoQError, self.p+1, self.iterationMax ,self.initial_params , self.OutputMatrixOrNot)
+        
         print(f"Initial parameters from ROOT fit: {self.initial_params}")
-        print(f"Chi_squared with initial parameters: {chi_squared}")
+        print(f"Chi_squared with initial parameters: {self.initial_chi2}")
         
         for ion in self.data.ions:
             if ion.is_reference_ion == False:
