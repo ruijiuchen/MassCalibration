@@ -1,7 +1,7 @@
 import sys
 import toml
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QHBoxLayout, QMainWindow, QFrame, QComboBox
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QHBoxLayout, QMainWindow, QFrame, QComboBox, QTextEdit, QMessageBox
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt
 from ROOT import TCanvas, TGraphErrors, TLatex, TLegend, TLine, kBlack, kRed, kMagenta
@@ -48,6 +48,7 @@ class CalibrationApp(QWidget):
         self.param_labels = {}
         self.param_inputs = {}
         self.param_browsers = {}
+        self.param_editors = {}
         
         self.config = None
         if self.config_file and os.path.exists(self.config_file):
@@ -123,6 +124,11 @@ class CalibrationApp(QWidget):
         browse_button.clicked.connect(lambda: self.browse_file(key))
         h_layout.addWidget(browse_button)
         self.param_browsers[key] = browse_button
+
+        edit_button = QPushButton('Edit', self)
+        edit_button.clicked.connect(lambda: self.edit_file(key))
+        h_layout.addWidget(edit_button)
+        self.param_editors[key] = edit_button
         
         self.layout.addLayout(h_layout)
 
@@ -147,7 +153,32 @@ class CalibrationApp(QWidget):
         file_name, _ = QFileDialog.getOpenFileName(self, f"Select {key}", "", "All Files (*)", options=options)
         if file_name:
             self.param_inputs[key].setText(file_name)
-    
+
+    def edit_file(self, key):
+        file_path = self.param_inputs[key].text()
+        if not os.path.exists(file_path):
+            QMessageBox.warning(self, "File Not Found", f"The file {file_path} does not exist.")
+            return
+        
+        editor = QTextEdit()
+        editor.setWindowTitle(f"Editing {key}")
+        editor.setGeometry(100, 100, 800, 600)
+
+        with open(file_path, 'r') as file:
+            editor.setText(file.read())
+        
+        def save_changes():
+            with open(file_path, 'w') as file:
+                file.write(editor.toPlainText())
+            editor.close()
+            QMessageBox.information(self, "Saved", f"Changes to {key} have been saved.")
+        
+        save_button = QPushButton("Save", editor)
+        save_button.clicked.connect(save_changes)
+        save_button.setGeometry(700, 550, 80, 30)
+        
+        editor.show()
+
     def create_plot_window(self, image_path):
         self.plot_window = QMainWindow()
         self.plot_window.setWindowTitle("Plot")
@@ -203,12 +234,11 @@ class CalibrationApp(QWidget):
 
         data = Data(ame_file, elbien_file, revtime_file, p)
         model = Model(data, p, iterationMax, OutputMatrixOrNot, initial_params)
-        model.calibration()  # Perform the fit before drawing the graph
         model.self_calibration()  # Perform the fit before drawing the graph
+        model.calibration()  # Perform the fit before drawing the graph
         data.calculate_chi2_and_systematic_error(p)  # Calculate chi2 and systematic error
         data.print_final_experimental_me()  # Print final experimental ME and error for all ions
         gui = GUI(data, model)
-        
         if draw_individual_fits:
             print("Running gui.draw_individual_fits()")  # Debug print
             gui.draw_individual_fits()

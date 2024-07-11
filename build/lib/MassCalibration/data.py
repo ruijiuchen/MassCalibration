@@ -49,7 +49,7 @@ class Data:
                 ion.is_reference_ion = is_reference_ion  # Set the is_reference_ion attribute
 
                 self.ions.append(ion)
-                print(f"Debug: IsReferenceIon for {ion.element}-{ion.A_ion}: {ion.is_reference_ion}")  # Debug output
+                #print(f"Debug: IsReferenceIon for {ion.element}-{ion.A_ion}: {ion.is_reference_ion}")  # Debug output
                 
     def read_ame(self, file_path):
         try:
@@ -74,7 +74,7 @@ class Data:
                     for ion in self.ions:
                         if ion.element == element and ion.Z_ion == Z and ion.A_ion == A:
                             ion.set_mass_excess(ME, MEError)
-                            print(f"Updated ion after read_ame: {ion}")  # Output updated ion information
+                            #print(f"Updated ion after read_ame: {ion}")  # Output updated ion information
                             break
 
     def read_elbien_file(self, file_path):
@@ -95,10 +95,7 @@ class Data:
             
             if not line.strip():
                 continue
-            
-            if i % 100 == 0:
-                print(f"Processing line {i+1}/{len(lines)}")
-            
+                
             tokens = line.split()
             if header_line:
                 headers = header_line.strip().split()[1:]
@@ -108,7 +105,7 @@ class Data:
                     for ion in self.ions:
                         if ion.Z_ion == Z and ion.Q_ion == Q:
                             ion.set_binding_energy(binding_energy)
-                            print(f"Updated ion after read_elbien_file: {ion}")  # Output updated ion information
+                            #print(f"Updated ion after read_elbien_file: {ion}")  # Output updated ion information
                             break
 
     def calculate_all_ion_masses(self):
@@ -140,9 +137,9 @@ class Data:
             numerator_me = delta_me ** 2
             denominator_me = ion.exp_mass_excess_error ** 2 + ion.mass_excess_error ** 2
             self.chi2_me += numerator_me / denominator_me
-            print("delta_me ",delta_me," denominator_me ",denominator_me," ion.exp_mass_excess_error = ",ion.exp_mass_excess_error," ion.mass_excess_error = ",ion.mass_excess_error, " self.chi2_me ",self.chi2_me)
+            #print("delta_me ",delta_me," denominator_me ",denominator_me," ion.exp_mass_excess_error = ",ion.exp_mass_excess_error," ion.mass_excess_error = ",ion.mass_excess_error, " self.chi2_me ",self.chi2_me)
         self.chi2_me = mp.sqrt(self.chi2_me / (len(reference_ions) - p))
-        print("self.chi2_me",self.chi2_me)
+        #print("self.chi2_me",self.chi2_me)
         # Iteratively adjust sigma_syst_me
         for i in range(100):
             chi2_me_iter = 0
@@ -155,9 +152,9 @@ class Data:
                 denominator_me = ion.exp_mass_excess_error ** 2 + ion.mass_excess_error ** 2 + self.sigma_syst_me ** 2
 
                 chi2_me_iter += numerator_me / denominator_me
-            print(chi2_me_iter,"len(reference_ions) - p) ",len(reference_ions) - p)
+            #print(chi2_me_iter,"len(reference_ions) - p) ",len(reference_ions) - p)
             chi2_me_iter = mp.sqrt(chi2_me_iter / (len(reference_ions) - p))
-            print(chi2_me_iter,"len(reference_ions) - p) ",len(reference_ions) - p)
+            #print(chi2_me_iter,"len(reference_ions) - p) ",len(reference_ions) - p)
             if float(chi2_me_iter) - 1.0 < 0:
                 break
 
@@ -169,7 +166,7 @@ class Data:
     def print_final_experimental_me(self):
         # Print final experimental ME and error for all ions
         print("\nFinal experimental ME and error for ATOM unit(keV)\n")
-        print(f"Fit order PN             {self.p}")
+        print(f"Fit order: p, (m/q = 1 + a1*T + a2*T^2 + ... a_p*T^p) {self.p}")
         print(f"REF_NUC NO.            {len([ion for ion in self.get_ions() if ion.is_reference_ion])}")
 
         print(f"{'Nuc':<8} {'Ref_nuc':<8} {'TOF':<15} {'ME(EXP-AME)':<10} {'ME_EXP':<10} {'ERROR(EXP)':<10} {'ERROR(AME)':<10}")
