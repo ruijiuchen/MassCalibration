@@ -1,7 +1,7 @@
 [parameters]
-ame_file = "/home/chenruijiu-ubuntu/MassCalibration/mass16.rd"
-elbien_file = "/home/chenruijiu-ubuntu/MassCalibration/ElBiEn_2007.dat"
-revtime_file = "/home/chenruijiu-ubuntu/mass_72Ge_exp/revlutiontime_72Ge.txt"
+ame_file = "mass16.rd"
+elbien_file = "ElBiEn_2007.dat"
+revtime_file = "revlutiontime_72Ge.txt"
 initial_params = "[-0.6880425289251325, 2.9730599061989426e-06, 5.55756235663825e-12]"
 p = "2"
 iterationMax = "100"
