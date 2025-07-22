@@ -14,6 +14,6 @@ git commit -m "$msg"
 
 # Step 4: 推送到 GitHub
 echo "⬆️  Pushing to GitHub..."
-git push origin master
+git push origin main
 
 echo "✅ Done."
